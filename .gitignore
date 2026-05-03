@@ -1,0 +1,12 @@
+# Entorno virtual de Python
+venv/
+
+# Credenciales y configuración local (no subir al repositorio)
+.env
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
