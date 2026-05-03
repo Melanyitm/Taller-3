@@ -45,6 +45,10 @@ class TicketEstadoPatch(BaseModel):
     estado: str
     observacion_responsable: str | None = None
     observacion_tecnico: str | None = None
+    id_asignado: int | None = Field(
+        default=None,
+        description="Obligatorio al pasar de recibido a asignado.",
+    )
 
     @field_validator("estado")
     @classmethod

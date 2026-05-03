@@ -27,21 +27,19 @@ En código reutilizable para las actividades 4 y 5:
 | POST | `/servicios/` |
 | GET | `/servicios/` |
 | GET | `/servicios/{id_servicio}` |
-| POST | `/tickets/` |
-| GET | `/tickets/` |
-| GET | `/tickets/{id_ticket}` |
-| PATCH | `/tickets/{id_ticket}/estado` |
+| POST | `/tickets/` *(JWT, scope `tickets:crear`)* |
+| GET | `/tickets/` *(JWT, `tickets:ver_propios`; admin ve todos)* |
+| GET | `/tickets/{id_ticket}` *(JWT)* |
+| PATCH | `/tickets/{id_ticket}/estado` *(JWT; scope según transición)* |
 
 Al iniciar la aplicación se ejecuta `CREATE SCHEMA IF NOT EXISTS` y `create_all` sobre ese schema (entorno de laboratorio). Para migraciones formales conviene introducir Alembic más adelante.
-
-**Nota:** La validación estricta de transiciones de estado y la autorización por **scopes** corresponden a la **actividad 5**; el `PATCH` de estado aún no aplica todas las reglas de negocio.
 
 ## Actividad 4 (autenticación JWT)
 
 - **POST `/auth/token`** — cuerpo *form* OAuth2: `username` = correo del usuario, `password` = contraseña. Respuesta: `access_token` y `token_type` (`bearer`).
 - El token incluye en el payload: `sub` (correo), `id_usuario`, `rol`, `scopes` (lista según `ROLE_SCOPES` en `app/domain/actividad2.py`) y `exp`.
 - Contraseñas: **bcrypt** al crear usuario (`POST /usuarios/`) y verificación en el login.
-- **Dependencia** `get_current_user` (`app/deps.py`): lee el Bearer token, valida firma y expiración y carga el usuario en base de datos.
+- **Dependencias** en `app/deps.py`: `get_auth_context` (JWT + validación de scopes con `SecurityScopes`) y `get_current_user` (alias cómodo para rutas solo autenticadas).
 - **Ruta protegida de ejemplo:** **GET `/usuarios/me`** — sin `Authorization: Bearer` responde **401**.
 
 ### Probar en Swagger
@@ -50,6 +48,15 @@ Al iniciar la aplicación se ejecuta `CREATE SCHEMA IF NOT EXISTS` y `create_all
 2. `POST /auth/token` — enviar el mismo correo en `username` y la contraseña en `password`.
 3. Copiar `access_token` → botón **Authorize** → pegar `Bearer <token>` o solo el token (Swagger añade `Bearer` según configuración).
 4. Ejecutar **GET `/usuarios/me`** y comprobar **200**; sin autorizar, **401**.
+
+## Actividad 5 (autorización con scopes y reglas de negocio)
+
+- **`SecurityScopes`** (vía `get_auth_context`): si el token no incluye el scope exigido por la ruta → **403**.
+- **Tickets** (siempre con Bearer):
+  - **POST /** exige `tickets:crear`. El **solicitante** solo puede usar su propio `id_solicitante`; **admin** puede crear en nombre de otro.
+  - **GET /** y **GET /{id}** exigen `tickets:ver_propios`. Quien tiene `tickets:ver_todos` (**admin**) lista todos; el resto solo ve tickets donde es solicitante, responsable o asignado. Ver un ticket ajeno → **403**.
+  - **PATCH /{id}/estado**: el scope necesario depende del par **estado actual → nuevo** (tabla de transiciones en `app/domain/actividad2.py`). Transición no listada → **422**. Además: en **recibido → asignado** debe enviarse **`id_asignado`** (usuario **auxiliar** o **tecnico_especializado**); en **asignado/en_proceso → en_proceso/en_revision** solo el **asignado** o **admin**; en **en_revision → terminado** solo el **responsable** registrado en el ticket o **admin**.
+- Reglas auxiliares: `app/domain/ticket_rules.py`.
 
 ## Configuración
 
